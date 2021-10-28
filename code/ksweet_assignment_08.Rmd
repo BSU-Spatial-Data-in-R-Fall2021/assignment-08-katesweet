@@ -1,0 +1,140 @@
+---
+title: "Making static maps"
+author: "Matt Williamson"
+date: "10/20/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+ library(usethis)
+library(gitcreds)
+ use_git_config(user.name = "katesweet", user.email = "katesweet@boisestate.edu") #your info here
+ gitcreds_set()
+```
+
+```{r}
+
+```
+
+## Your assignment
+
+The goals for this assignment are to:
+
+- practice making maps with the various packages
+- think about composition and the grammar of graphics
+- critique various maps
+
+_By the end of the assignment_ you should have several static maps displaying the datasets we've used in the last few weeks.
+
+# Task 1: Show me your ugly maps!!
+Find 2 examples of maps that you think are 'bad'. 
+
+![an image caption Source: Ultimate Funny Dog Videos Compilation 2013.](https://cdn.vox-cdn.com/thumbor/2AnLp-hwFUEjkW9TxSt_U1-rv8k=/0x0:1198x777/920x0/filters:focal(0x0:1198x777):format(webp):no_upscale()/cdn.vox-cdn.com/uploads/chorus_asset/file/3420378/pandora.0.jpg)
+
+
+_Question 1_ Why are they bad? What might improve them? 
+Although i love the edm map and reminiscing about pandora, extracting any information from the map is difficult because of the complicated key and similarr colors. 
+
+_Question 2_ Rely on the Healy and Wilke texts to provide some structure to your answers.
+
+# Task 2: Load your libraries and build a dataframe
+You can choose whichever datasets you'd like from the past several months as the subject for your mapping. You'll need to use at least one tabular join, one spatial join, and one extraction to create the dataframe. Load the packages, the data, and make sure everything is projected here. Give me a sense for what you are hoping to map.
+```{r}
+library(sf)
+library(tidycensus)
+library(tidyverse)
+library(rgdal)
+library(tigris)
+library(ggplot2)
+library(tmap)
+library(leaflet)
+library(pander)
+library(units)
+library(ggmap)
+library(cartogram)
+library(patchwork)
+library(viridis)
+library(terra)
+library(ggspatial)
+
+# note can do eval=FALSE to show code but not actually run it if its slow 
+# note you can just call a package and function directly without loading library 
+# never put a slash first when working in a project. if you just do tab it should work. if you try that and nothing shows up then ya fucked yourself
+
+#set crs
+albers<-"ESRI:102008"
+
+#load in fips codes for easier join
+fips.codes<-tigris::fips_codes
+
+# land value data set for extraction, transform after extent
+land.value<- terra::rast("/opt//data//session16/Regval.tif")
+
+plot(state$geometry)
+plot(land.value.proj, add=TRUE)
+# load protected areas, transform
+regional.pas.sf <- read_sf("/opt/data//session14//reg_pas.shp") %>% 
+  st_transform(.,crs=albers)
+
+# st_crs(regional.pas.sf) (checked)
+
+# load states and census areas,transform.
+#spatial join 
+indig.land<-tigris::native_areas() %>% 
+  st_transform(., albers)
+
+#st_crs(indig.land)
+# load tigris
+states<-c("NM", "AZ", "UT")
+state<-tigris::states() %>% 
+  dplyr::filter(STUSPS %in% states) %>% 
+  st_transform(., crs=albers)
+ext(state)
+
+# load county gini 
+gini.county <- get_acs(geography = 'county', variables = c("B19083_001"),state = states, survey = "acs5", geometry=TRUE) %>% 
+  st_transform(.,albers)
+
+# crop the indig land 
+sw.indig<-st_crop(indig.land, xmin=-1675801.85637018, ymin=-1644504.98422147, xmax=227864.889898457, ymax=368735.241536214)
+all(st_is_valid(sw.indig))
+sw.indig<-as(sw.indig, "SpatVector")
+
+
+# resample the raster
+new.ras<-terra::rast( xmin=-1675801.85637018, ymin=-1644504.98422147, xmax=227864.889898457, ymax=368735.241536214 ,crs=albers,res=1000,vals=0)
+land.value.proj <- terra::resample(land.value, new.ras)
+land.value.proj<-as(land.value.proj, "SpatRaster")
+
+#extracts of raster - county level?
+landv<-terra::extract(land.value.proj, sw.indig, fun=mean, na.rm=TRUE, weights=TRUE)
+
+# spatial join by overlaps 
+```
+
+
+# Task 3: Build a map with Tmap
+Practice making a quick map with tmap. 
+```{r}
+
+```
+
+
+# Task 4: Build a choropleth with ggplot
+Your map should have a basemap, should rely on more than one aesthetic (color, transparency, etc), and combine multiple layers.
+```{r}
+
+```
+
+
+# Task 5: Build 2 cartograms
+Follow the examples to build cartograms that display your region of interest based on variables other than area.
+
+_Question 3:_ Reflect on the different maps you've made, what do the different visualizations tell you about the data you plotted?
+
+_Question 4:_ How might you improve the maps you've made?
+
+_Question 5:_ Is a map the best way to evaluate the data you worked with? Why or Why not?
+
+
