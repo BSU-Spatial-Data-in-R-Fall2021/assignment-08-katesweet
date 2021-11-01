@@ -1,6 +1,6 @@
 ---
 title: "Making static maps"
-author: "Matt Williamson"
+author: "Kate Sweet"
 date: "10/20/2021"
 output: html_document
 ---
@@ -103,7 +103,6 @@ gini.income.county <- get_acs(geography = 'county', variables = c(medianincome =
   select(-moe) %>% 
   spread(variable, estimate)
 
-
 # crop the indig land 
 sw.indig<-st_crop(indig.land, state)
 all(st_is_valid(sw.indig))
@@ -124,33 +123,40 @@ rasters <- rast(list(mammals.proj,land.value.proj))
 #rasters<-as(rasters, "Raster")
 ras<-terra::extract(rasters, sw.indig, fun=NULL, na.rm=TRUE, list=TRUE, weights=TRUE)
 
+# spatial join by overlaps 
+indig.county.az<- st_join(indig, gini.income.county, st=overlaps)
+indig.county.az <- indig.county.az %>% 
+  group_by(GEOID.x) %>% 
+ rename(GEOID=GEOID.x) %>% 
+  summarize(., meaninc = mean(medianincome, na.rm=TRUE),
+            meang = mean(gini, na.rm=TRUE)) 
+
+
+ras<-terra::extract(rasters, sw.indig, fun=NULL, na.rm=TRUE, list=TRUE, weights=TRUE)
+
 sw.indig<-st_as_sf(sw.indig)
 extracts.df <- map(1:nrow(sw.indig), function(x){
   data.frame(GEOID = st_drop_geometry(sw.indig[x, "GEOID"]),
              land.val = mean(ras[[x]][[2]], na.rm = TRUE),
              Value = mean(ras[[x]][[1]], na.rm = TRUE))
              }) %>% do.call(rbind, .)
-indig<-left_join(sw.indig,extracts.df)
+indig<-left_join(indig.county.az,extracts.df)
 
-# spatial join by overlaps 
-indig.county.az<- st_join(indig, gini.income.county, st=overlaps)
-indig.county.az <- indig.county.az %>% 
-  group_by(GEOID.x) %>% 
+#left off fixing here
+regional.pas.sf<- st_join(regional.pas.sf, gini.income.county, st=overlaps)
+regional.pas.sf <- regional.pas.sf %>% 
+  group_by(Loc_Nm) %>% 
   summarize(., meaninc = mean(medianincome, na.rm=TRUE),
-            meang = mean(gini, na.rm=TRUE)) %>% 
-  rename(GEOID=GEOID.x) %>% 
-  select(GEOID, meaninc, meang)
+            meang = mean(gini, na.rm=TRUE)) 
 
-indig.county.az<-left_join(indig.county.az,census, by="GEOID")
-
-rasters<-as(rasters, "Raster")
+regional.pas.sf<-as(regional.pas.sf, "SpatVector")
 ras<-terra::extract(rasters, regional.pas.sf, fun=NULL, na.rm=TRUE, list=TRUE, weights=TRUE)
 
 regional.pas.sf<-st_as_sf(regional.pas.sf)
 extracts.df <- map(1:nrow(regional.pas.sf), function(x){
   data.frame(Loc_Nm = st_drop_geometry(regional.pas.sf[x, "Loc_Nm"]),
-             land.val = mean(ras[[x]][[]], na.rm = TRUE),
-             Value = mean(ras[[x]][[2]], na.rm = TRUE))
+             land.val = mean(ras[[x]][[2]], na.rm = TRUE),
+             Value = mean(ras[[x]][[1]], na.rm = TRUE))
              }) %>% do.call(rbind, .)
 regional.pas.sf<-left_join(regional.pas.sf,extracts.df)
 
@@ -175,17 +181,12 @@ tm_shape(regional.pas.sf) +
   tm_shape(mammals.proj) +
   tm_raster("Value", palette = viridis(n=10), n=10, legend.show=TRUE, legend.hist.title = "Species Richness")+
   tm_shape(indig) +
-  tm_polygons(col = "estimate", palette=viridis(n=10)) +
+  tm_polygons(col = "Value", palette=viridis(n=10)) +
   tm_legend(outside = TRUE)+
   tm_shape(state)+
   tm_borders()
   
-  
-  tm_shape(indig) +
-  tm_polygons(col = "medianincome", palette=viridis(n=10)) +
-  tm_legend(outside = TRUE)+
-  tm_shape(state)+
-  tm_borders()
+
   
 
 ```
@@ -201,17 +202,18 @@ az <- tigris::states(cb=TRUE) %>%
 bg <- ggmap::get_stamenmap(as.vector(st_bbox(az)))
 land.value.proj<-as(land.value.proj, "Raster")
 
-ggmap(bg) +
-   geom_sf(data = indig.county.az, mapping = aes(fill =  meaninc), inherit.aes = FALSE) +
-  geom_sf(data=az, fill=NA,color="black", inherit.aes = FALSE) +
-  coord_sf(crs = st_crs(albers))
 
 ggmap(bg) +
-  geom_sf(data = indig.county.az, mapping = aes(fill = Value, 
-                                           alpha = (Value - max(Value, na.rm=TRUE))/(max(Value, na.rm=TRUE)-min(Value, na.rm = TRUE))), inherit.aes = FALSE) +
+   geom_sf(data = indig, mapping = aes(fill =  land.val), inherit.aes = FALSE) +
+  geom_sf(data=az, fill=NA,color="black", inherit.aes = FALSE) +
+  coord_sf(crs = st_crs(4326))
+
+ggmap(bg) +
+      geom_sf(data = gini.income.county, mapping = aes(fill = medianincome, alpha=0.1), inherit.aes = FALSE)+
+  geom_sf(data = indig, mapping = aes(fill = meaninc),color="black", inherit.aes = FALSE)+
   geom_sf(data=az, fill=NA,color="black", inherit.aes = FALSE) +
   scale_fill_viridis(option="magma")+
-  coord_sf(crs = st_crs(albers))
+  coord_sf(crs = st_crs(4326))
 
 
 ```
@@ -222,20 +224,26 @@ Follow the examples to build cartograms that display your region of interest bas
 ```{r}
 
 # gini 
-id_inc <- cartogram_cont(id.census, "medianincome", itermax = 5)
+az_gini <- cartogram_cont(gini.income.county, "gini", itermax = 5)
+az_income <- cartogram_cont(gini.income.county, "medianincome", itermax = 5)
 
 # 
-tm_shape(id_pop) + tm_polygons("pop", style = "jenks") +
+tm_shape(az_gini) + tm_polygons("gini", style = "jenks") +
+  tm_layout(frame = FALSE, legend.position = c("left", "bottom")) 
+
+
+tm_shape(az_income) + tm_polygons("medianincome", style = "jenks") +
   tm_layout(frame = FALSE, legend.position = c("left", "bottom")) 
 ```
 
 _Question 3:_ Reflect on the different maps you've made, what do the different visualizations tell you about the data you plotted?
-
-It looks like on average there's a lot of mammal species richness in reservation land of arizona when cmpared to the rest of the state. Another interestig thing was when I looked at the data in there.
+It looks like on average there's a lot of mammal species richness in reservation land of arizona when compared to the rest of the state. 
+Protected areas generally had lower land values.
+The median income in the Navajo Nation also appears lower than that of other tribal reservations in Arizona. 
 
 _Question 4:_ How might you improve the maps you've made?
+The maps I made in tmap with adding raster layers weren't useful to visualize things that I cared about. I think what might have been more useful would be to have just the outlines of regions of interest for a more useful and detail comparison of either protected or indigenous lands versus the remainder of the state. Looking at the gini index in relationship to population could also be helpful.
 
 _Question 5:_ Is a map the best way to evaluate the data you worked with? Why or Why not?
-No, not necessarly. For example the tmap would 
-
+For some things it was appropriate. For example, is speciess richness greater in an rea designation of interest or outside of it? Similarly, visualizing county income's and gini scores were interesting. I think looking at a map was a fine way to investigate the data, but some of the maps could have been improved to be more useful to the question at hand outside of assignment requirements. I did find the cartograms very interesting in the context of looking at measures across the state. I think I will probably use this visualization a lot when exploring census variables at large scales. 
 
