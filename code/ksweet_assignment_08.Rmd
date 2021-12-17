@@ -9,8 +9,8 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
  library(usethis)
  library(gitcreds)
- use_git_config(user.name = "katesweet", user.email = "katesweet@boisestate.edu") #your info here
- gitcreds_set()
+ #use_git_config(user.name = "katesweet", user.email = "katesweet@boisestate.edu") #your info here
+ #gitcreds_set()
 ```
 
 ```{r}
@@ -33,13 +33,14 @@ Find 2 examples of maps that you think are 'bad'.
 ![EDM Songs on Pandora.](https://cdn.vox-cdn.com/thumbor/2AnLp-hwFUEjkW9TxSt_U1-rv8k=/0x0:1198x777/920x0/filters:focal(0x0:1198x777):format(webp):no_upscale()/cdn.vox-cdn.com/uploads/chorus_asset/file/3420378/pandora.0.jpg)
 
 ![Hogs.](hogs.png)
+__MW: this doesn't knit and you don't have the files in your folder for me to look at these__
 
 _Question 1_ Why are they bad? What might improve them? 
 Although I love the edm map and reminiscing about pandora, extracting any information from the map is difficult because of the complicated key and similar colors. Choosing different colors, or selecting few songs (for example the 5 most popular edm songs nationwide, and which one ranks highest in eacg state) could simplify the visual information. It's also possible that this information might not be displayed well as a map. The hog map is confusing in how it chooses to display what I guess would be considered hog density. Each dot  represents thousands of hogs, but how the dots are spatially distributed on the map is misleading, given that it seems highly unlikely hogs always occur in units of 5,000. Doing some kind of state or county by county numbers could fix this issue.
 
 _Question 2_ Rely on the Healy and Wilke texts to provide some structure to your answers.
 The hog map could be improved using a chlorpleth map of counties, with darker colors representing highest hog density, as suggested by Healy. In regards to the EDM data set, as the Wilke text implies, the map's author is asking color to do too much. If color indeed is the most popular song in every state, that could be dozens of distinct colors which would be too much for the viewer to mentally keep track of. Further, there needs to be larger color variation aside from a few shades of blue.
-
+__MW: these are good answers, I'm sorry I can't see the maps__
 # Task 2: Load your libraries and build a dataframe
 You can choose whichever datasets you'd like from the past several months as the subject for your mapping. You'll need to use at least one tabular join, one spatial join, and one extraction to create the dataframe. Load the packages, the data, and make sure everything is projected here. Give me a sense for what you are hoping to map.
 ```{r}
@@ -63,6 +64,7 @@ library(ggspatial)
 # note can do eval=FALSE to show code but not actually run it if its slow 
 # note you can just call a package and function directly without loading library 
 # never put a slash first when working in a project. if you just do tab it should work. if you try that and nothing shows up then ya fucked yourself
+#lol
 
 #set crs
 albers<-"ESRI:102008"
@@ -124,7 +126,7 @@ rasters <- rast(list(mammals.proj,land.value.proj))
 ras<-terra::extract(rasters, sw.indig, fun=NULL, na.rm=TRUE, list=TRUE, weights=TRUE)
 
 # spatial join by overlaps 
-indig.county.az<- st_join(indig, gini.income.county, st=overlaps)
+indig.county.az<- st_join(indig.land, gini.income.county, st=overlaps)
 indig.county.az <- indig.county.az %>% 
   group_by(GEOID.x) %>% 
  rename(GEOID=GEOID.x) %>% 
@@ -146,8 +148,8 @@ indig<-left_join(indig.county.az,extracts.df)
 regional.pas.sf<- st_join(regional.pas.sf, gini.income.county, st=overlaps)
 regional.pas.sf <- regional.pas.sf %>% 
   group_by(Loc_Nm) %>% 
-  summarize(., meaninc = mean(medianincome, na.rm=TRUE),
-            meang = mean(gini, na.rm=TRUE)) 
+  summarize(., meaninc = mean(meaninc, na.rm=TRUE),
+            meang = mean(meang, na.rm=TRUE)) #MW: had to change things here as these didn't work as written
 
 regional.pas.sf<-as(regional.pas.sf, "SpatVector")
 ras<-terra::extract(rasters, regional.pas.sf, fun=NULL, na.rm=TRUE, list=TRUE, weights=TRUE)
@@ -247,3 +249,4 @@ The maps I made in tmap with adding raster layers weren't useful to visualize th
 _Question 5:_ Is a map the best way to evaluate the data you worked with? Why or Why not?
 For some things it was appropriate. For example, is speciess richness greater in an rea designation of interest or outside of it? Similarly, visualizing county income's and gini scores were interesting. I think looking at a map was a fine way to investigate the data, but some of the maps could have been improved to be more useful to the question at hand outside of assignment requirements. I did find the cartograms very interesting in the context of looking at measures across the state. I think I will probably use this visualization a lot when exploring census variables at large scales. 
 
+_MW: I like the cartogram of the gini index. It's a really interesting way of thinking about economics spatially_
